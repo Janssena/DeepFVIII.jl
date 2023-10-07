@@ -1,3 +1,4 @@
+include("src/lib/compartment_models.jl");
 # Bjorkman 2012 -> OSA
 CL = 193 .* (wt ./ 53).^0.8 .* (1 .- 0.0045 .* (age .- 22))
 V1 = 2.22 .* (wt ./ 53).^0.95
