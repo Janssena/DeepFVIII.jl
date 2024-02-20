@@ -48,6 +48,18 @@ subset_ = [indexes_advate; indexes_novo] # Not([indexes_refa; indexes_aafact])
 ##########                                              ##########
 ##################################################################
 
+individuals_ = Vector{Individual}(undef, length(df_group))
+for (i, group) in enumerate(df_group)
+    I = Matrix{Float32}(group[group.MDV .== 1, [:Time, :Dose, :Rate, :Duration]])
+    cb = generate_dosing_callback(I; S1=1/10f0)
+    x = Vector{Float32}(group[1, [:FFM, :VWFAg_imputed]])
+    u0 = !ismissing(group[1, :DV]) ? Float32(group[1, "DV-BASE"]) : 0.f0
+    individuals_[i] = Individual(x, Float32.(group[group.MDV .== 0, "DV-BASE"]), Float32.(group[group.MDV .== 0, :Time]), cb; id=String(group.SubjectID[1]), u0=u0)
+end
+
+population_ann = Population(individuals_)[subset_]
+adapt!(population_ann, 2)
+
 smooth_relu(x::T; β::T = T(10)) where {T<:Real} = one(T) / β * Lux.softplus(x * β)
 non_zero_relu(x::T) where {T<:Real} = Lux.relu(x) + T(1e-3)
 
@@ -97,6 +109,14 @@ for i in eachindex(population_ann)
     preds[i] = csa_to_osa.(predict(prob, population_ann[i], ζ_median[:, i] .* advate_correction).u)
 end
 
-sqrt(sum(abs2, vcat((population_ann.y - preds)...)) / 125)
+# RMSE
+sqrt(sum(abs2, vcat((population_ann.y - preds)...)) / sum(length.(population_ann.y)))
 # 18.39 without advate correction
 # 14.647 <-- with median post eta advate correction + csa -> osa correction
+# Mean error
+mean(vcat((population_ann.y - preds)...)) # 1.5032398f0
+# R squared
+ȳ = mean(vcat(population_ann.y...))
+SSᵣₑₛ = sum(abs2, vcat((population_ann.y - preds)...)) # sum of squared residuals
+SSₜₒₜ = sum(abs2, vcat(population_ann.y...) .- ȳ)
+R² = 1 - SSᵣₑₛ / SSₜₒₜ # 0.89851683f0
